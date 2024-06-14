@@ -1,21 +1,32 @@
-import io
-from fastapi import FastAPI, UploadFile
-from PIL import Image, UnidentifiedImageError
+import os
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from PIL import Image
 from starlette import status
 from starlette.exceptions import HTTPException
-from starlette.responses import StreamingResponse
+from starlette.responses import FileResponse
 
 app = FastAPI()
 
+load_dotenv()
 
-@app.post('/resize')
-async def resizing(width: int, height: int, picture: UploadFile):
-    try:
-        img = Image.open(picture.file)
-    except UnidentifiedImageError:
-        raise HTTPException(detail='Неподдерживаемый формат изображения',
+MAIN_PATH = os.environ.get('MAIN_PATH')
+
+
+@app.get('/resize')
+async def resizing(filename: str, width: int, height: int):
+    path = os.path.join(MAIN_PATH, filename)
+    if not os.path.exists(path):
+        raise HTTPException(detail='Файл не найден',
                             status_code=status.HTTP_400_BAD_REQUEST)
 
+    filename_with_parameters = f'{filename.split(".")[0]}_{width}x{height}.{filename.split(".")[1]}'
+    alternative_path = os.path.join(MAIN_PATH, filename_with_parameters)
+    if os.path.exists(alternative_path):
+        return FileResponse(path=alternative_path, filename=f'{filename_with_parameters}',
+                            media_type='multipart/form-data')
+
+    img = Image.open(path)
     width_img, height_img = img.size  # width - ширина, height - высота
 
     if width_img > height_img:
@@ -27,7 +38,6 @@ async def resizing(width: int, height: int, picture: UploadFile):
         new_width = int(width_img / ratio)
         new_image = img.resize((new_width, height))
 
-    buff = io.BytesIO()
-    new_image.save(buff, format='PNG')
-    buff.seek(0)
-    return StreamingResponse(buff, headers={'Content-Disposition': 'attachment; filename="picture.png"'})
+    new_image.save(alternative_path)
+    return FileResponse(path=alternative_path, filename=f'{filename_with_parameters}',
+                        media_type='multipart/form-data')

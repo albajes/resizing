@@ -14,11 +14,16 @@ MAIN_PATH = os.environ.get('MAIN_PATH')
 
 
 @app.get('/resize')
-async def resizing(filename: str, width: int, height: int):
+async def resizing(filename: str, width: int = None, height: int = None):
     path = os.path.join(MAIN_PATH, filename)
+
     if not os.path.exists(path):
         raise HTTPException(detail='Файл не найден',
                             status_code=status.HTTP_400_BAD_REQUEST)
+
+    if (width is None) or (height is None):
+        return FileResponse(path=path, filename=f'{filename}',
+                            media_type='multipart/form-data')
 
     filename_with_parameters = f'{filename.split(".")[0]}_{width}x{height}.{filename.split(".")[1]}'
     alternative_path = os.path.join(MAIN_PATH, filename_with_parameters)
